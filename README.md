@@ -44,12 +44,12 @@ Think of it as an automated, high-speed brainstorming session with a team of cre
 
 ## Features
 
--   **🧙‍ World Builder** → builds out rich world details
--   **👤 Character Creator** → generates character archetypes and quirks
--   **📝 AI-Generated Title Option** → provides an option to have the AI generate a story title
--   **✍️ Summary Writer** → writes a short, engaging summary of the story
--   **📊 LangSmith Tracing** → logs LLM interactions for observability
--   **💾 Local file output** → saves final result using story title
+-   **World Builder** → builds out rich world details
+-   **Character Creator** → generates character archetypes and quirks
+-   **AI-Generated Title Option** → provides an option to have the AI generate a story title
+-   **Summary Writer** → writes a short, engaging summary of the story
+-   **LangSmith Tracing** → logs LLM interactions for observability
+-   **Local file output** → saves final result using story title
 
 ---
 
