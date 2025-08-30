@@ -1,4 +1,4 @@
-# 🧠 Idea Weaver
+# Idea Weaver
 
 **Let your local AI be your creative muse.**
 
@@ -23,7 +23,7 @@ graph TD
 
 ---
 
-## 🤔 What is Idea Weaver?
+## What is Idea Weaver?
 
 This application does not write a complete, finished story. Instead, it acts as a **creative partner** to rapidly develop a detailed **story concept or scaffold** from a simple idea.
 
@@ -42,7 +42,7 @@ Think of it as an automated, high-speed brainstorming session with a team of cre
 
 ---
 
-## 🚀 Features
+## Features
 
 -   **🧙‍ World Builder** → builds out rich world details
 -   **👤 Character Creator** → generates character archetypes and quirks
@@ -53,7 +53,7 @@ Think of it as an automated, high-speed brainstorming session with a team of cre
 
 ---
 
-## 🛠 Requirements
+## Requirements
 
 Use a virtual environment and install the dependencies. `uv` is recommended for performance:
 
@@ -64,7 +64,7 @@ uv pip install -r requirements.txt
 
 ---
 
-## 📂 Project Structure
+## Project Structure
 
 ```
 idea-weaver/
@@ -105,7 +105,7 @@ OLLAMA_MODEL=<YOUR_OLLAMA_MODEL_NAME>
 
 ---
 
-## 🏃‍ How to Run
+## How to Run
 
 1.  **Set up your environment:**
     - Create a virtual environment using `uv`:
