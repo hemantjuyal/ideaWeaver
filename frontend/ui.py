@@ -1,5 +1,6 @@
 import streamlit as st
 import logging
+import json
 
 def render_ui(api_client):
     st.title("🤖 Idea Weaver")
@@ -10,8 +11,6 @@ def render_ui(api_client):
         st.session_state.conversation_history = []
         st.session_state.collected_inputs = {}
         st.session_state.master_agent_finished = False
-
-    
 
     # Display chat messages from history on app rerun
     for message in st.session_state.messages:
@@ -27,9 +26,14 @@ def render_ui(api_client):
                 collected_inputs={}
             )
             if initial_response_data.get("status") == "continue":
-                st.session_state.messages.append({"role": "assistant", "content": initial_response_data.get("message", "")})
-                st.session_state.conversation_history.append(f"Assistant: {initial_response_data.get("message", "")}")
-                st.rerun() # Rerun to display the initial message
+                st.session_state.messages.append({
+                    "role": "assistant",
+                    "content": initial_response_data.get("message", "")
+                })
+                st.session_state.conversation_history.append(
+                    f"Assistant: {initial_response_data.get('message', '')}"
+                )
+                st.rerun()  # Rerun to display the initial message
             else:
                 st.error("An unexpected error occurred during initialization. Please try again.")
                 st.stop()
@@ -47,11 +51,20 @@ def render_ui(api_client):
 
             # Get assistant response
             with st.spinner("Thinking..."):
-                logging.info(f"Sending collected_inputs to backend: type={type(st.session_state.collected_inputs)}, content={st.session_state.collected_inputs}")
+                collected_inputs = st.session_state.collected_inputs
+                logging.info(
+                    f"Sending collected_inputs to backend: "
+                    f"type={type(collected_inputs)}, keys={list(collected_inputs.keys())}"
+                )
+                # ✅ pretty-print only in debug mode
+                logging.debug("Collected inputs (pretty):\n%s",
+                    json.dumps(collected_inputs, indent=2, ensure_ascii=False)
+                )
+
                 assistant_response_data = api_client.call_master_agent_api(
                     conversation_history="\n".join(st.session_state.conversation_history),
                     user_input=user_input,
-                    collected_inputs=st.session_state.collected_inputs
+                    collected_inputs=collected_inputs
                 )
                 status = assistant_response_data.get("status")
                 message = assistant_response_data.get("message")
@@ -68,7 +81,7 @@ def render_ui(api_client):
                 if status == "complete":
                     st.session_state.master_agent_finished = True
                 
-            st.rerun() # Rerun to trigger the story generation
+            st.rerun()  # Rerun to trigger the story generation
 
     # Trigger main story generation once master agent is finished
     if st.session_state.master_agent_finished:
@@ -91,7 +104,7 @@ def render_ui(api_client):
                 with st.chat_message("assistant"):
                     st.markdown(error_message)
 
-        st.session_state.master_agent_finished = False # Reset to prevent re-running immediately
+        st.session_state.master_agent_finished = False  # Reset to prevent re-running immediately
         st.session_state.messages.append({"role": "assistant", "content": "Story concept generated! Would you like to start a new story?"})
         st.session_state.conversation_history.append("Assistant: Story concept generated! Would you like to start a new story?")
         st.rerun()

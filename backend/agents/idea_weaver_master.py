@@ -24,11 +24,11 @@ def idea_weaver_master(llm):
             "You are the primary interface between the user and the Idea Weaver application. "
             "Your expertise lies in understanding user intent, asking clarifying questions, "
             "and ensuring all required story parameters are collected accurately and efficiently. "
-            "You are patient, adaptable, and focused on guiding the user through the input process seamlessly." 
-            "You will manage the entire input collection process, including handling choices for generating or providing titles/names, and managing sequential input for character names." 
-            "Once all inputs are collected, you will output a JSON object containing all the validated inputs." 
+            "You are patient, adaptable, and focused on guiding the user through the input process seamlessly."
+            "You will manage the entire input collection process, including handling choices for generating or providing titles/names, and managing sequential input for character names."
+            "Once all inputs are collected, you will output a JSON object containing all the validated inputs."
         ),
-        verbose=True, # Set to False to prevent detailed execution logs from appearing in UI
+        verbose=True,  # Set to False to prevent detailed execution logs from appearing in UI
         allow_delegation=False,
         llm=llm
     )
@@ -55,23 +55,24 @@ def master_agent_input_task(llm, current_conversation_history: str, current_user
     task = Task(
         description=task_description,
         agent=master_agent,
-                expected_output="""Your response MUST be a pure JSON object, 
-                with no additional text or markdown formatting. 
-                The JSON object must have 'status' (string: 'continue', 'complete', 'invalid_input') and 
-                'message' (string: the question for the user or an error message). 
-                It can optionally have 'data' (JSON object with collected inputs if status is 'complete')."""
+        expected_output="""Your response MUST be a pure JSON object, 
+        with no additional text or markdown formatting. 
+        The JSON object must have 'status' (string: 'continue', 'complete', 'invalid_input') and 
+        'message' (string: the question for the user or an error message). 
+        It can optionally have 'data' (JSON object with collected inputs if status is 'complete')."""
     )
 
     crew = Crew(
         agents=[master_agent],
         tasks=[task],
-        process=Process.sequential, # Only one task for this crew
-        verbose=True # Set to False to prevent detailed execution logs from appearing in UI
+        process=Process.sequential,  # Only one task for this crew
+        verbose=True  # Set to False to prevent detailed execution logs from appearing in UI
     )
     
     try:
         result = crew.kickoff()
         logging.info(f"Master agent raw response: {result.raw}")
+
         def escape_unescaped_newlines(s: str) -> str:
             """Escape only raw newlines inside JSON strings."""
             fixed = []
@@ -102,14 +103,16 @@ def master_agent_input_task(llm, current_conversation_history: str, current_user
             # Rule 1: Strip Markdown code fences
             json_match = re.search(r'```json\s*(.*?)\s*```', processed_raw, re.DOTALL)
             if json_match:
-                processed_raw = json_match.group(1).strip() # Trim whitespace from extracted JSON
+                processed_raw = json_match.group(1).strip()  # Trim whitespace from extracted JSON
                 logging.info(f"Extracted JSON from markdown: {processed_raw}")
 
             # Rule 2: Escape raw newlines inside strings
-            # This regex applies globally, assuming newlines outside strings are structural and would break initial parse
-            # The user's example implies this global application is desired for their specific newline issue
-            # processed_raw = re.sub(r'(?<!\\)\\n', r'\\\\n', processed_raw)
             processed_raw = escape_unescaped_newlines(processed_raw)
+
+            # Rule 5: Fix double curly braces {{ ... }} → { ... }
+            if processed_raw.startswith("{{") and processed_raw.endswith("}}"):
+                logging.info("Detected double curly braces, fixing...")
+                processed_raw = processed_raw[1:-1].strip()
 
             try:
                 # Rule 4: Retry parsing (after cleaning)
@@ -117,16 +120,24 @@ def master_agent_input_task(llm, current_conversation_history: str, current_user
                 logging.info("Successfully parsed JSON after cleaning.")
             except json.JSONDecodeError as e_fixed:
                 logging.warning(f"JSON decode failed even after cleaning: {e_fixed}. Returning error.")
-                # If fixing newlines didn't work, return error
-                return json.dumps({"status": "error", "message": "The AI returned an unreadable response. Please try again."})
+                return json.dumps({
+                    "status": "error",
+                    "message": "The AI returned an unreadable response. Please try again."
+                })
 
         # After successful parsing (either direct or after cleaning)
         # Basic validation of the parsed result structure
         if parsed_result and "status" in parsed_result and "message" in parsed_result:
-            return json.dumps(parsed_result) # Return as JSON string
+            return json.dumps(parsed_result)  # Return as JSON string
         else:
             logging.warning(f"Master agent returned invalid JSON structure: {result.raw}")
-            return json.dumps({"status": "error", "message": "Master agent returned an unexpected response format."})
+            return json.dumps({
+                "status": "error",
+                "message": "Master agent returned an unexpected response format."
+            })
     except Exception as e:
         logging.error(f"Error during master agent kickoff: {e}", exc_info=True)
-        return json.dumps({"status": "error", "message": "An internal error occurred while processing your request. Please try again or restart the conversation."})
+        return json.dumps({
+            "status": "error",
+            "message": "An internal error occurred while processing your request. Please try again or restart the conversation."
+        })
