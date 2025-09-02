@@ -1,8 +1,9 @@
 # agents/character_name_generator.py
 # This module generates character names using a dedicated CrewAI agent.
 
+import ast
 from crewai import Agent, Task, Crew, Process
-from utils.prompt_templates import CHARACTER_NAME_GENERATOR_PROMPT
+from backend.prompts.character_name_generator_prompt import CHARACTER_NAME_GENERATOR_PROMPT
 from langsmith import traceable
 
 @traceable(name="Character Name Generator Agent")
@@ -46,13 +47,16 @@ def generate_character_names(llm, premise, age_group, num_characters):
 
     # Kick off the crew and get the raw output
     result = crew.kickoff()
+    if not result or not result.raw:
+        return [f"Character {i+1}" for i in range(num_characters)]
+
     raw_result = result.raw
 
     # Process the result to return a clean list of names
     try:
         # The output should be a string representation of a list, e.g., "['Elara', 'Kaelen']"
         # We can use eval to safely parse it into a Python list.
-        name_list = eval(raw_result)
+        name_list = ast.literal_eval(raw_result)
         if isinstance(name_list, list) and len(name_list) == num_characters and all(isinstance(n, str) for n in name_list):
             return name_list
     except (SyntaxError, ValueError, TypeError):

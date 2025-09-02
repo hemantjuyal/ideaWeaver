@@ -2,6 +2,10 @@
 # This module saves the generated story content to a markdown file.
 
 import os
+import logging
+
+# Configure logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 def save_to_markdown(title: str, content: str, output_dir: str = "outputs"):
     """Saves the generated story content to a markdown file.

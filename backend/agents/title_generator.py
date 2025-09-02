@@ -3,7 +3,7 @@
 
 from crewai import Agent, Task, Crew, Process
 from langsmith import traceable
-from utils.prompt_templates import TITLE_GENERATOR_PROMPT
+from backend.prompts.title_generator_prompt import TITLE_GENERATOR_PROMPT
 
 @traceable(name="Title Generator Agent")
 def generate_story_title(llm, story_premise: str, age_group: str) -> str:
@@ -35,4 +35,7 @@ def generate_story_title(llm, story_premise: str, age_group: str) -> str:
     )
 
     crew = Crew(agents=[title_agent], tasks=[task], process=Process.sequential, verbose=True)
-    return str(crew.kickoff())
+    result = crew.kickoff()
+    if result:
+        return str(result)
+    return "A Story Yet to be Titled"
