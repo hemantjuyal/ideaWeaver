@@ -2,7 +2,7 @@
 
 **Let your local AI be your creative muse.**
 
-Idea Weaver is a multi-agentic application designed to be your creative partner. It leverages a team of specialized AI agents, powered by local Large Language Models (LLMs) via **Ollama**, to transform a simple story premise into a well-structured narrative concept. This multi-agent architecture allows for modularity, where each agent brings specialized expertise to a specific stage of story development, enhancing robustness and scalability. The entire creative process is orchestrated by **CrewAI** and is fully observable through **LangSmith**, giving you a transparent look into the AI's reasoning process.
+Idea Weaver is a multi-agentic application designed to be your creative partner. It leverages a team of specialized AI agents, powered by Large Language Models (LLMs) via **Ollama** or **Google Gemini API**, configurable through an environment variable. to transform a simple story premise into a well-structured narrative concept. This multi-agent architecture allows for modularity, where each agent brings specialized expertise to a specific stage of story development, enhancing robustness and scalability. The entire creative process is orchestrated by **CrewAI** and is fully observable through **LangSmith**, giving you a transparent look into the AI's reasoning process.
 
 ### Multi-Agent Orchestration Flow
 
@@ -95,7 +95,6 @@ idea-weaver/
 │       ├── llm_loader.py
 │       ├── markdown_builder.py
 │       ├── master_agent_tools.py
-│       ├── prompt_templates.py
 │       ├── save_to_markdown.py
 │       └── startup_checker.py
 ├── frontend/
@@ -119,9 +118,17 @@ LANGSMITH_ENDPOINT=<YOUR_LANGSMITH_ENDPOINT>
 LANGSMITH_API_KEY=<YOUR_LANGSMITH_API_KEY>
 LANGSMITH_PROJECT=<YOUR_LANGSMITH_PROJECT_NAME>
 
-# Ollama Configuration
+# LLM Provider Configuration
+# Set LLM_PROVIDER to either "OLLAMA" or "GEMINI"
+LLM_PROVIDER="OLLAMA" # or "GEMINI"
+
+# --- Ollama Configuration (if LLM_PROVIDER="OLLAMA") ---
 OLLAMA_BASE_URL=<YOUR_OLLAMA_BASE_URL>
 OLLAMA_MODEL=<YOUR_OLLAMA_MODEL_NAME>
+
+# --- Gemini API Configuration (if LLM_PROVIDER="GEMINI") ---
+GEMINI_API_KEY=<YOUR_GEMINI_API_KEY>
+GEMINI_MODEL=<YOUR_GEMINI_MODEL_NAME> # e.g., "gemini-pro", "gemini-1.5-pro-latest", "gemini-1.5-flash-latest"
 ```
 
 ---
