@@ -12,6 +12,8 @@ from backend.agents.narrative_nudger import narrative_nudger
 from backend.agents.summary_writer import summary_writer
 from backend.agents.title_generator import generate_story_title
 from backend.agents.character_name_generator import generate_character_names
+from backend.agents.name_generator_agent import name_generator_agent, generate_character_names_task
+from backend.agents.title_generator_agent import title_generator_agent, generate_story_title_task
 from backend.utils.llm_loader import load_llm
 from backend.utils.save_to_markdown import save_to_markdown
 from crewai import Crew, Process, Task, Agent
@@ -31,7 +33,7 @@ class AgentResponse(BaseModel):
     data: Optional[Dict[str, Any]] = None
 
 class StoryGenerationRequest(BaseModel):
-    initial_premise: str
+    premise: str
     age_group: str
     title_choice: str
     title_input: Optional[str] = None
@@ -78,7 +80,7 @@ async def converse(request: UserRequest):
 
 @router.post("/generate_story")
 async def generate_story(request: StoryGenerationRequest):
-    logging.info(f"Received request for /generate_story endpoint with premise: {request.initial_premise}")
+    logging.info(f"Received request for /generate_story endpoint with premise: {request.premise}")
     try:
         # Initialize agents
         wb_agent = world_builder(llm)
@@ -95,7 +97,7 @@ async def generate_story(request: StoryGenerationRequest):
         # Add title generation task if chosen
         generated_title = None
         if request.title_choice == "Generate for me":
-            title_task = generate_story_title_task(llm, request.initial_premise, request.age_group)
+            title_task = generate_story_title_task(llm, request.premise, request.age_group)
             tasks.append(title_task)
             agents_in_crew.append(tg_agent)
         else:
@@ -104,14 +106,14 @@ async def generate_story(request: StoryGenerationRequest):
         # Add character name generation task if chosen
         actual_character_names = request.character_names_input
         if request.name_choice == "Generate for me":
-            names_task = generate_character_names_task(llm, request.initial_premise, request.age_group, request.num_characters)
+            names_task = generate_character_names_task(llm, request.premise, request.age_group, request.num_characters)
             tasks.append(names_task)
             agents_in_crew.append(ng_agent)
         # else: actual_character_names is already set from request.character_names_input
 
         # World Building Task
         world_task = Task(
-            description=f"Develop a detailed world description for a story with the premise: '{request.initial_premise}'. "
+            description=f"Develop a detailed world description for a story with the premise: '{request.premise}'. "
                         f"Target audience: {request.age_group}. Focus on unique elements, settings, and atmosphere.",
             agent=wb_agent,
             expected_output="A detailed, engaging world description for the story."
@@ -122,7 +124,7 @@ async def generate_story(request: StoryGenerationRequest):
         # This task now depends on names being generated or provided.
         # We'll need to ensure the names are available from the crew_result if generated.
         character_task = Task(
-            description=f"Create {request.num_characters} character profiles based on the premise: '{request.initial_premise}' "
+            description=f"Create {request.num_characters} character profiles based on the premise: '{request.premise}' "
                         f"and the world description. Use these names: {{crew_result_names}}. " # Placeholder for names
                         f"Include archetypes, key traits, and motivations for each.",
             agent=cc_agent,
@@ -132,7 +134,7 @@ async def generate_story(request: StoryGenerationRequest):
 
         # Narrative Nudger Task
         narrative_task = Task(
-            description=f"Develop a compelling narrative twist or plot point for the story based on the premise: '{request.initial_premise}', "
+            description=f"Develop a compelling narrative twist or plot point for the story based on the premise: '{request.premise}', "
                         f"world description: {{crew_result_world_description}}, and character profiles: {{crew_result_character_profiles}}.",
             agent=nn_agent,
             expected_output="A concise and engaging narrative twist or plot point."
@@ -141,7 +143,7 @@ async def generate_story(request: StoryGenerationRequest):
 
         # Summary Writer Task
         summary_task = Task(
-            description=f"Write a concise and engaging summary of the story, incorporating the premise: '{request.initial_premise}', "
+            description=f"Write a concise and engaging summary of the story, incorporating the premise: '{request.premise}', "
                         f"world description: {{crew_result_world_description}}, character profiles: {{crew_result_character_profiles}}, "
                         f"and narrative twist: {{crew_result_narrative_twist}}.",
             agent=sw_agent,
@@ -160,33 +162,36 @@ async def generate_story(request: StoryGenerationRequest):
         )
 
         # Execute the crew
-        crew_result = story_crew.kickoff()
+        story_crew.kickoff()
 
         # Extract results from crew_result
         # CrewAI returns results as a dictionary where keys are task outputs
         # We need to map these back to our final_output structure
+        task_outputs = {}
+        for task_output in story_crew.tasks_outputs:
+            task_outputs[task_output.description] = task_output.result
         
-        # If title was generated by crew, get it from crew_result
+        # If title was generated by crew, get it from task_outputs
         if request.title_choice == "Generate for me":
-            generated_title = crew_result.get(title_task.description, generated_title) # Use task description as key
+            generated_title = task_outputs.get(title_task.description, generated_title) # Use task description as key
 
-        # If names were generated by crew, get them from crew_result
+        # If names were generated by crew, get them from task_outputs
         if request.name_choice == "Generate for me":
-            actual_character_names = crew_result.get(names_task.description, actual_character_names) # Use task description as key
+            actual_character_names = task_outputs.get(names_task.description, actual_character_names) # Use task description as key
 
         # Prepare the final output
         final_output = {
-            "premise": request.initial_premise,
+            "premise": request.premise,
             "age_group": request.age_group,
             "title_choice": request.title_choice,
             "title": generated_title, # Now directly from generated_title or request.title_input
             "num_characters": request.num_characters,
             "name_choice": request.name_choice,
             "character_names": actual_character_names, # Now directly from actual_character_names or request.character_names_input
-            "world_description": crew_result.get(world_task.description, "N/A"),
-            "character_profiles": crew_result.get(character_task.description, "N/A"),
-            "narrative_twist": crew_result.get(narrative_task.description, "N/A"),
-            "story_summary": crew_result.get(summary_task.description, "N/A")
+            "world_description": task_outputs.get(world_task.description, "N/A"),
+            "character_profiles": task_outputs.get(character_task.description, "N/A"),
+            "narrative_twist": task_outputs.get(narrative_task.description, "N/A"),
+            "story_summary": task_outputs.get(summary_task.description, "N/A")
         }
         
         # Build markdown content using the new build_markdown function

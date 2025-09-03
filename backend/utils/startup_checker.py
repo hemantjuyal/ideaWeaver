@@ -11,7 +11,7 @@ from dotenv import load_dotenv
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 def check_env_vars():
-    """Loads environment variables from .env file and validates required Langsmith configurations.
+    """Loads environment variables from .env file and validates required configurations based on LLM_PROVIDER.
 
     Returns:
         bool: True if environment variables are configured, False otherwise.
@@ -21,12 +21,27 @@ def check_env_vars():
         logging.error("Please create a .env file in the root directory.")
         return False
 
-    required_keys = ["LANGSMITH_API_KEY", "LANGSMITH_PROJECT", "LANGSMITH_ENDPOINT"]
+    required_keys = ["LANGSMITH_API_KEY", "LANGSMITH_PROJECT", "LANGSMITH_ENDPOINT", "LLM_PROVIDER"]
     missing_keys = [key for key in required_keys if not os.getenv(key)]
 
     if missing_keys:
         logging.error(f"Error: Missing required environment variables: {', '.join(missing_keys)}")
         logging.error("Please ensure your .env file contains all necessary keys.")
+        return False
+
+    llm_provider = os.getenv("LLM_PROVIDER")
+    if llm_provider == "OLLAMA":
+        llm_required_keys = ["OLLAMA_BASE_URL", "OLLAMA_MODEL"]
+    elif llm_provider == "GEMINI":
+        llm_required_keys = ["GEMINI_API_KEY", "GEMINI_MODEL"]
+    else:
+        logging.error(f"Error: Unsupported LLM_PROVIDER: {llm_provider}. Must be 'OLLAMA' or 'GEMINI'.")
+        return False
+
+    missing_llm_keys = [key for key in llm_required_keys if not os.getenv(key)]
+    if missing_llm_keys:
+        logging.error(f"Error: Missing required LLM environment variables for {llm_provider}: {', '.join(missing_llm_keys)}")
+        logging.error("Please ensure your .env file contains all necessary keys for the chosen LLM_PROVIDER.")
         return False
 
     os.environ["LANGSMITH_TRACING_V2"] = os.getenv("LANGSMITH_TRACING_V2", "true")
@@ -62,10 +77,17 @@ def run_frontend_startup_checks():
     """
     logging.info("--- Running Frontend Startup Checks ---")
     env_vars_ok = check_env_vars()
-    ollama_ok = check_ollama_server()
-    if not (env_vars_ok and ollama_ok):
+    if not env_vars_ok:
         logging.error("Frontend startup checks failed.")
         return False
+
+    llm_provider = os.getenv("LLM_PROVIDER")
+    if llm_provider == "OLLAMA":
+        ollama_ok = check_ollama_server()
+        if not ollama_ok:
+            logging.error("Frontend startup checks failed.")
+            return False
+
     logging.info("--- Frontend Startup Checks Passed ---")
     return True
 
@@ -76,8 +98,7 @@ def run_backend_startup_checks():
     """
     logging.info("--- Running Backend Startup Checks ---")
     env_vars_ok = check_env_vars()
-    ollama_ok = check_ollama_server()
-    if not (env_vars_ok and ollama_ok):
+    if not env_vars_ok:
         logging.error("Backend startup checks failed. Exiting.")
         sys.exit(1)
     logging.info("--- Backend Startup Checks Passed ---")

@@ -15,6 +15,7 @@ from backend.utils.master_agent_tools import (
     ValidateAndUpdateNumCharactersTool,
     ValidateAndUpdateNameChoiceTool,
     ValidateAndUpdateCharacterNamesInputTool,
+    ProvideOptionsTool,
     SignalCompletionTool,
 )
 
@@ -50,6 +51,7 @@ def idea_weaver_master(llm):
             ValidateAndUpdateNameChoiceTool(),
             ValidateAndUpdateCharacterNamesInputTool(),
             SignalCompletionTool(),
+            ProvideOptionsTool(),
         ]
     )
 
@@ -72,14 +74,25 @@ def master_agent_input_task(llm, current_conversation_history: str, current_user
     else:
         # Follow-up calls: Use the more general tool-routing prompt
         task_description = (
-            "Your task is to act as a tool router. You must select and use exactly one tool. "
-            "The tool you use will return a JSON object. Your final answer must be ONLY that JSON object, exactly as the tool returned it. "
-            "Do not add any explanation, any markdown, or any other text. Your entire output must be the JSON from the tool.\n\n"
-            "When you use a tool, you must provide the arguments as a dictionary. For example: `tool_name(user_input='the user\'s input', collected_inputs={'key': 'value'})`\n\n"
-            f"The last question asked to the user was: '{last_question}'. This should help you determine which validation tool to use.\n\n"
-            f"Current conversation history:\n{current_conversation_history}\n"
-            f"Last user input: {current_user_input}\n"
-            f"Currently collected inputs: {collected_inputs_json_str}"
+            f"The user's response is: '{current_user_input}'.\n"
+            f"The current collected inputs are: {collected_inputs_json_str}.\n"
+            "Based on the user's response, you must use the correct validation tool to process it.\n"
+            "When calling the tool, you must use the exact `user_input` and `collected_inputs` provided above.\n"
+            "You are only allowed to use the tools provided. Do not invent new tools.\n"
+            "The validation tools will also ask the next question in the conversation.\n\n"
+            "--- Tool Selection Guide ---\n"
+            "0. If a previous tool call returned a status of 'invalid_input', you must use the appropriate validation tool again with the *new* `user_input` to re-validate the input. Do not re-use the old `user_input`.\n"
+            "1. If the user asks for help, provides an unclear answer, or says 'generate ideas', use `Provide Options`.\n"
+            "2. If `collected_inputs` does not contain 'premise', use `Ask for Premise`.\n"
+            "3. If `collected_inputs` contains 'premise' but not 'age_group', use `Validate and Update Premise`.\n"
+            "4. If `collected_inputs` contains 'age_group' but not 'title_choice', use `Validate and Update Age Group`.\n"
+            "5. If `collected_inputs` contains 'title_choice' but not 'title_input' (and title_choice is 'Provide my own'), use `Validate and Update Title Choice`.\n"
+            "6. If `collected_inputs` contains 'title_input' but not 'num_characters', use `Validate and Update Title Input`.\n"
+            "7. If `collected_inputs` contains 'num_characters' but not 'name_choice', use `Validate and Update Number of Characters`.\n"
+            "8. If `collected_inputs` contains 'name_choice' but not 'character_names_input' (and name_choice is 'Provide my own'), use `Validate and Update Name Choice`.\n"
+            "9. If `collected_inputs` contains 'character_names_input', use `Validate and Update Character Names Input`.\n"
+            "10. If all required inputs are collected, use `Signal Completion`.\n"
+            "--------------------------"
         )
 
     task = Task(

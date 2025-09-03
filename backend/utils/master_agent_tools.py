@@ -271,3 +271,22 @@ class SignalCompletionTool(BaseTool):
             "message": "Excellent! I have all the information I need. I will now start weaving your story concept.",
             "data": collected_inputs
         }
+
+class ProvideOptionsTool(BaseTool):
+    name: str = "Provide Options"
+    description: str = "Use this tool to provide the user with options or guidance when they ask for help or don't provide a direct answer."
+
+    def _run(self) -> Dict[str, Any]:
+        return {
+            "status": "continue",
+            "message": (
+                "I can help you brainstorm a story concept. To get started, I need a basic premise. "
+                "For example, you could say:\n"
+                "- A wizard living in a modern city\n"
+                "- A group of kids who discover a secret portal in their backyard\n"
+                "- A detective investigating a crime in a city where everyone has a superpower\n\n"
+                "Or, if you'd like, I can generate some random ideas for you. Just say 'generate ideas'."
+            ),
+            "data": {},
+            "last_question": "premise"
+        }
