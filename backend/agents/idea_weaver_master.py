@@ -1,13 +1,22 @@
-# agents/idea_weaver_master.py
-# This module defines the Idea Weaver Master agent for managing conversational flow.
-
+import ast
 import json
 import logging
 import re
+from typing import Optional
 from crewai import Agent, Task, Crew, Process
 from langsmith import traceable
-from backend.prompts.master_agent_initial_prompt import MASTER_AGENT_INITIAL_PROMPT
-from backend.prompts.master_agent_follow_up_prompt import MASTER_AGENT_FOLLOW_UP_PROMPT
+# Import the new tool classes directly
+from backend.utils.master_agent_tools import (
+    AskForPremiseTool,
+    ValidateAndUpdatePremiseTool,
+    ValidateAndUpdateAgeGroupTool,
+    ValidateAndUpdateTitleChoiceTool,
+    ValidateAndUpdateTitleInputTool,
+    ValidateAndUpdateNumCharactersTool,
+    ValidateAndUpdateNameChoiceTool,
+    ValidateAndUpdateCharacterNamesInputTool,
+    SignalCompletionTool,
+)
 
 # Configure logging for this module
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -30,11 +39,23 @@ def idea_weaver_master(llm):
         ),
         verbose=True,  # Set to False to prevent detailed execution logs from appearing in UI
         allow_delegation=False,
-        llm=llm
+        llm=llm,
+                tools=[
+            AskForPremiseTool(),
+            ValidateAndUpdatePremiseTool(),
+            ValidateAndUpdateAgeGroupTool(),
+            ValidateAndUpdateTitleChoiceTool(),
+            ValidateAndUpdateTitleInputTool(),
+            ValidateAndUpdateNumCharactersTool(),
+            ValidateAndUpdateNameChoiceTool(),
+            ValidateAndUpdateCharacterNamesInputTool(),
+            SignalCompletionTool(),
+        ]
     )
 
+
 @traceable(name="Master Agent Input Collection Task")
-def master_agent_input_task(llm, current_conversation_history: str, current_user_input: str, collected_inputs: dict):
+def master_agent_input_task(llm, current_conversation_history: str, current_user_input: str, collected_inputs: dict, last_question: Optional[str] = None):
     """Defines the task for the Master Agent to collect and validate inputs."""
     master_agent = idea_weaver_master(llm)
     
@@ -42,25 +63,31 @@ def master_agent_input_task(llm, current_conversation_history: str, current_user
     collected_inputs_json_str = json.dumps(collected_inputs, indent=2)
 
     if not current_conversation_history and not current_user_input:
-        # Initial call, use the initial prompt
-        task_description = MASTER_AGENT_INITIAL_PROMPT
+        # Initial call: Force the LLM to call AskForPremiseTool
+        task_description = (
+            "Your first task is to use the `Ask for Premise` tool. "
+            "The tool will return a JSON object. Your final answer must be ONLY that JSON object, exactly as the tool returned it. "
+            "Do not add any explanation, any markdown, or any other text."
+        )
     else:
-        # Follow-up call, use the follow-up prompt
-        task_description = MASTER_AGENT_FOLLOW_UP_PROMPT.format(
-            conversation_history=current_conversation_history,
-            user_input=current_user_input,
-            collected_inputs=collected_inputs_json_str
+        # Follow-up calls: Use the more general tool-routing prompt
+        task_description = (
+            "Your task is to act as a tool router. You must select and use exactly one tool. "
+            "The tool you use will return a JSON object. Your final answer must be ONLY that JSON object, exactly as the tool returned it. "
+            "Do not add any explanation, any markdown, or any other text. Your entire output must be the JSON from the tool.\n\n"
+            "When you use a tool, you must provide the arguments as a dictionary. For example: `tool_name(user_input='the user\'s input', collected_inputs={'key': 'value'})`\n\n"
+            f"The last question asked to the user was: '{last_question}'. This should help you determine which validation tool to use.\n\n"
+            f"Current conversation history:\n{current_conversation_history}\n"
+            f"Last user input: {current_user_input}\n"
+            f"Currently collected inputs: {collected_inputs_json_str}"
         )
 
     task = Task(
         description=task_description,
         agent=master_agent,
-        expected_output="""Your response MUST be a pure JSON object, 
-        with no additional text or markdown formatting. 
-        The JSON object must have 'status' (string: 'continue', 'complete', 'invalid_input') and 
-        'message' (string: the question for the user or an error message). 
-        It can optionally have 'data' (JSON object with collected inputs if status is 'complete')."""
+        expected_output="A single, raw JSON object, which is the direct output of the tool you used. No other text or formatting."
     )
+
 
     crew = Crew(
         agents=[master_agent],
@@ -73,6 +100,8 @@ def master_agent_input_task(llm, current_conversation_history: str, current_user
         result = crew.kickoff()
         logging.info(f"Master agent raw response: {result.raw}")
 
+        # The JSON parsing logic remains the same as it handles the output format
+        # that the UI expects. The LLM will now generate this JSON after tool calls.
         def escape_unescaped_newlines(s: str) -> str:
             """Escape only raw newlines inside JSON strings."""
             fixed = []
@@ -95,35 +124,39 @@ def master_agent_input_task(llm, current_conversation_history: str, current_user
 
         parsed_result = None
         try:
-            # Rule 4: Retry parsing (first attempt)
+            # First, try to parse as-is
             parsed_result = json.loads(processed_raw)
         except json.JSONDecodeError as e:
-            logging.warning(f"Initial JSON decode failed: {e}. Attempting to fix.")
-
+            logging.warning(f"Initial JSON decode failed: {e}. Attempting to fix and retry.")
+            # If it fails, try to fix common LLM-induced errors
+            
             # Rule 1: Strip Markdown code fences
             json_match = re.search(r'```json\s*(.*?)\s*```', processed_raw, re.DOTALL)
             if json_match:
-                processed_raw = json_match.group(1).strip()  # Trim whitespace from extracted JSON
-                logging.info(f"Extracted JSON from markdown: {processed_raw}")
+                processed_raw = json_match.group(1).strip()
 
             # Rule 2: Escape raw newlines inside strings
             processed_raw = escape_unescaped_newlines(processed_raw)
 
-            # Rule 5: Fix double curly braces {{ ... }} → { ... }
+            # Rule 3: Fix double curly braces {{ ... }} → { ... }
             if processed_raw.startswith("{{") and processed_raw.endswith("}}"):
-                logging.info("Detected double curly braces, fixing...")
                 processed_raw = processed_raw[1:-1].strip()
 
             try:
-                # Rule 4: Retry parsing (after cleaning)
+                # Second attempt: try json.loads again after basic cleaning
                 parsed_result = json.loads(processed_raw)
-                logging.info("Successfully parsed JSON after cleaning.")
-            except json.JSONDecodeError as e_fixed:
-                logging.warning(f"JSON decode failed even after cleaning: {e_fixed}. Returning error.")
-                return json.dumps({
-                    "status": "error",
-                    "message": "The AI returned an unreadable response. Please try again."
-                })
+                logging.info("Successfully parsed JSON after basic cleaning.")
+            except json.JSONDecodeError:
+                # Third attempt: try ast.literal_eval for Python dict syntax (e.g., single quotes)
+                try:
+                    parsed_result = ast.literal_eval(processed_raw)
+                    logging.info("Successfully parsed JSON using ast.literal_eval.")
+                except (ValueError, SyntaxError) as ast_e:
+                    logging.warning(f"JSON decode failed even after all cleaning attempts: {ast_e}. Returning error.")
+                    return json.dumps({
+                        "status": "error",
+                        "message": "The AI returned an unreadable response. Please try again."
+                    })
 
         # After successful parsing (either direct or after cleaning)
         # Basic validation of the parsed result structure

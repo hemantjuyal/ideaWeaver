@@ -1,7 +1,5 @@
-# utils/markdown_builder.py
-# This module builds the final markdown content for the story summary.
-
 import re
+from typing import Dict, Any, List
 
 def _clean_llm_output(text: str) -> str:
     """Removes any text before the first Markdown heading in a string and specific unwanted headings."""
@@ -14,25 +12,23 @@ def _clean_llm_output(text: str) -> str:
         return text[match.start():]
     return text
 
-def build_markdown(
-    title: str,
-    premise: str,
-    age_group: str,
-    initial_character_names: list,
-    crew_result
-) -> str:
+def build_markdown(final_output: Dict[str, Any]) -> str:
     """Builds the final markdown output from all generated story components."""
 
-    world_details = _clean_llm_output(crew_result.tasks_output[0].raw)
-    character_details = _clean_llm_output(crew_result.tasks_output[1].raw)
-    narrative_twist_content = _clean_llm_output(crew_result.tasks_output[2].raw)
-    summary = crew_result.tasks_output[3].raw
+    title = final_output.get("title", "Untitled Story")
+    premise = final_output.get("premise", "N/A")
+    age_group = final_output.get("age_group", "N/A")
+    character_names = final_output.get("character_names", [])
+    world_description = _clean_llm_output(final_output.get("world_description", "N/A"))
+    character_profiles = _clean_llm_output(final_output.get("character_profiles", "N/A")),
+    narrative_twist_content = _clean_llm_output(final_output.get("narrative_twist", "N/A"))
+    summary = final_output.get("story_summary", "N/A")
 
     return f"""# {title}
 
 > **Premise**: {premise}
 > **Target Audience**: {age_group}
-> **Characters**: {', '.join(initial_character_names)}
+> **Characters**: {', '.join(character_names)}
 
 ---
 
@@ -42,13 +38,13 @@ def build_markdown(
 
 ---
 
-{world_details}
+{world_description}
 
 ---
 
 ## Characters
 
-{character_details}
+{character_profiles}
 
 ---
 

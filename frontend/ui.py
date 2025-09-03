@@ -11,6 +11,7 @@ def render_ui(api_client):
         st.session_state.conversation_history = []
         st.session_state.collected_inputs = {}
         st.session_state.master_agent_finished = False
+        st.session_state.last_question = None
 
     # Display chat messages from history on app rerun
     for message in st.session_state.messages:
@@ -23,7 +24,8 @@ def render_ui(api_client):
             initial_response_data = api_client.call_master_agent_api(
                 conversation_history="",
                 user_input="",
-                collected_inputs={}
+                collected_inputs={},
+                last_question=st.session_state.last_question
             )
             if initial_response_data.get("status") == "continue":
                 st.session_state.messages.append({
@@ -33,6 +35,7 @@ def render_ui(api_client):
                 st.session_state.conversation_history.append(
                     f"Assistant: {initial_response_data.get('message', '')}"
                 )
+                st.session_state.last_question = initial_response_data.get("last_question")
                 st.rerun()  # Rerun to display the initial message
             else:
                 st.error("An unexpected error occurred during initialization. Please try again.")
@@ -52,23 +55,18 @@ def render_ui(api_client):
             # Get assistant response
             with st.spinner("Thinking..."):
                 collected_inputs = st.session_state.collected_inputs
-                logging.info(
-                    f"Sending collected_inputs to backend: "
-                    f"type={type(collected_inputs)}, keys={list(collected_inputs.keys())}"
-                )
-                # ✅ pretty-print only in debug mode
-                logging.debug("Collected inputs (pretty):\n%s",
-                    json.dumps(collected_inputs, indent=2, ensure_ascii=False)
-                )
+                logging.info(f"Sending collected_inputs to backend: {json.dumps(collected_inputs, indent=2)}")
 
                 assistant_response_data = api_client.call_master_agent_api(
                     conversation_history="\n".join(st.session_state.conversation_history),
                     user_input=user_input,
-                    collected_inputs=collected_inputs
+                    collected_inputs=collected_inputs,
+                    last_question=st.session_state.last_question
                 )
                 status = assistant_response_data.get("status")
                 message = assistant_response_data.get("message")
                 data = assistant_response_data.get("data", {})
+                st.session_state.last_question = assistant_response_data.get("last_question")
 
                 # Display assistant response in chat message container
                 with st.chat_message("assistant"):

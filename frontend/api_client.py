@@ -5,14 +5,15 @@ import json
 
 API_BASE_URL = os.getenv("API_BASE_URL", "http://127.0.0.1:8000")
 
-def call_master_agent_api(conversation_history, user_input, collected_inputs):
+def call_master_agent_api(conversation_history, user_input, collected_inputs, last_question):
     try:
         response = requests.post(
             f"{API_BASE_URL}/converse",
             json={
                 "conversation_history": conversation_history,
                 "user_input": user_input,
-                "collected_inputs": collected_inputs
+                "collected_inputs": collected_inputs,
+                "last_question": last_question
             }
         )
         response.raise_for_status() # Raise HTTPError for bad responses (4xx or 5xx)
