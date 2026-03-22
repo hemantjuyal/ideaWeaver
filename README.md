@@ -1,7 +1,5 @@
 # Idea Weaver
 
-**Let your local AI be your creative muse.**
-
 Idea Weaver is a multi-agentic application designed to be your creative partner. It leverages a team of specialized AI agents, powered by Large Language Models (LLMs) via **Ollama** or **Google Gemini API**, to transform a simple story premise into a well-structured narrative concept. 
 
 This multi-agent orchestration allows for modularity, where each agent brings specialized expertise to a specific stage of story development, enhancing robustness and scalability. The entire creative process is orchestrated by **CrewAI** and is fully observable through **LangSmith**, giving you a transparent look into the AI's reasoning process.
