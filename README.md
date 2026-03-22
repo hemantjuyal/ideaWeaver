@@ -33,6 +33,7 @@ The application employs a sophisticated multi-agent pipeline. The **Idea Weaver 
 3.  **Synthesis:** The **Summary Writer** compiles all previous outputs into a cohesive narrative blueprint.
 
 ```mermaid
+%%{init: {'theme': 'neutral'}}%%
 graph TD
     subgraph "Input & Validation Phase"
         U[User Input] --> MA(Idea Weaver Master Agent)
